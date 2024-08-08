@@ -29,14 +29,14 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 	outputFile := filepath.Join(filepath.Clean(outputDir), "pg_dump "+now.Format("2006-01-02 15:04:05")+".sql")
 
 	// check if pg_dump is installed
-	cmd := exec.Command("dpkg", "-s", "postgresql-client")
-	if err := cmd.Run(); err != nil {
-		log.Fatal("PostgreSQL client is not installed. Please install it first. [sudo apt install postgresql-client]")
-		return err
-	}
+	// cmd := exec.Command("dpkg", "-s", "postgresql-client")
+	// if err := cmd.Run(); err != nil {
+	// 	log.Fatal("PostgreSQL client is not installed. Please install it first. [sudo apt install postgresql-client]")
+	// 	return err
+	// }
 
 	os.Setenv("PGPASSWORD", dbPassword)
-	cmd = exec.Command("pg_dump", "-h", dbHost, "-p", dbPort, "-U", dbUser, "-d", dbName, "-f", outputFile)
+	cmd := exec.Command("pg_dump", "-h", dbHost, "-p", dbPort, "-U", dbUser, "-d", dbName, "-f", outputFile)
 
 	var outbuf, errbuf bytes.Buffer
 	cmd.Stdout = &outbuf

@@ -67,8 +67,10 @@ var pruneCmd = &cobra.Command{
 
 		response = strings.TrimSpace(response)
 		if strings.ToLower(response) == "y" {
-			if _, err := prune(args[0], cmd.Flag("max-file-age").Value.String()); err != nil {
+			if count, err := prune(args[0], cmd.Flag("max-file-age").Value.String()); err != nil {
 				log.Fatalln(err)
+			} else {
+				fmt.Printf("Pruned %d files.\n", count)
 			}
 		} else {
 			fmt.Println("Action canceled.")
