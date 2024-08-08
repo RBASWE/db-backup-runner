@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -28,15 +29,26 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 	now := time.Now()
 	outputFile := filepath.Join(filepath.Clean(outputDir), "pg_dump_"+now.Format("20060102_150405")+".sql")
 
+	var cmd *exec.Cmd
 	// check if pg_dump is installed
-	// cmd := exec.Command("dpkg", "-s", "postgresql-client")
-	// if err := cmd.Run(); err != nil {
-	// 	log.Fatal("PostgreSQL client is not installed. Please install it first. [sudo apt install postgresql-client]")
-	// 	return err
-	// }
+	if runtime.GOOS == "windows" {
+		// Windows-specific logic to check if pg_dump is installed
+		cmd = exec.Command("where", "pg_dump")
+		if err := cmd.Run(); err != nil {
+			log.Fatal("PostgreSQL client is not installed. Please install it first.")
+			return err
+		}
+	} else {
+		// Unix-like systems (Linux, macOS)
+		cmd = exec.Command("dpkg", "-s", "postgresql-client")
+		if err := cmd.Run(); err != nil {
+			log.Fatal("PostgreSQL client is not installed. Please install it first. [sudo apt install postgresql-client]")
+			return err
+		}
+	}
 
 	os.Setenv("PGPASSWORD", dbPassword)
-	cmd := exec.Command("pg_dump", "-h", dbHost, "-p", dbPort, "-U", dbUser, "-d", dbName, "-f", outputFile)
+	cmd = exec.Command("pg_dump", "-h", dbHost, "-p", dbPort, "-U", dbUser, "-d", dbName, "-f", outputFile)
 
 	var outbuf, errbuf bytes.Buffer
 	cmd.Stdout = &outbuf
