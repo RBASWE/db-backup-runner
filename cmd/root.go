@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 
+	cron "github.com/RBASWE/db-backup-runner/cmd/cron"
 	"github.com/spf13/cobra"
 )
 
@@ -21,4 +22,5 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.AddCommand(cron.CronRootCmd)
 }

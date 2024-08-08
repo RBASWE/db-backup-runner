@@ -22,10 +22,6 @@ var outputDir string
 var maxAge = ""
 
 func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbPassword string, outputDir string, maxAge string) error {
-	// if dbHost == "" || dbPort == "" || dbUser == "" || dbName == "" || dbPassword == "" || outputDir == "" {
-	// 	return fmt.Errorf("missing required arguments")
-	// }
-
 	now := time.Now()
 	outputFile := filepath.Join(filepath.Clean(outputDir), "pg_dump_"+now.Format("20060102_150405")+".sql")
 
@@ -62,8 +58,6 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 	}
 
 	// Remove files older than ***, time defined in attributes
-	// ...
-
 	if maxAge != "" {
 		pruneCount, err := prune(outputDir, maxAge)
 		if err != nil {

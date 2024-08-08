@@ -12,10 +12,10 @@ db-backup-runner pgsql --host "192.168.35.43" -p 5432 -u admin --pw admin -d gse
 
 ### Parameters
 
-> **`--host`**, `-h`: The database host (e.g., "192.168.35.43")  
+> **`--host`**: The database host (e.g., "192.168.35.43")  
 > **`--port`**, `-p`: The database port (e.g., 5432)  
 > **`--user`**, `-u`: The database user (e.g., "admin")  
-> **`--password`**, `--pw`: The database password (e.g., "admin")  
+> **`--pw`**: The database password (e.g., "admin")  
 > **`--database`**, `-d`: The database name (e.g., "gseven")  
 > **`--output`**, `-o`: The output directory for the backup files (e.g., "/home/rbaswe/backups")  
 

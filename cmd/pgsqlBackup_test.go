@@ -4,25 +4,36 @@ import (
 	"testing"
 )
 
-var (
-	testDbHost     = "192.168.35.43"
-	testDbPort     = "5432"
-	testDbUser     = "admin"
-	testDbPassword = "admin"
-	testDbName     = "gseven"
-	testOutputDir  = "/home/rbaswe/backups/"
-)
+type dbBackupCfg struct {
+	host       string
+	port       string
+	user       string
+	password   string
+	dbName     string
+	output     string
+	maxFileAge string
+}
 
 func TestPgslBackupexec(t *testing.T) {
 	tests := []struct {
-		name string
+		cfg dbBackupCfg
 	}{
-		// TODO: Add test cases.
-		{"test"},
+		{
+			cfg: dbBackupCfg{
+				host:       "192.168.35.43", // local test db
+				port:       "5432",
+				user:       "admin",
+				password:   "admin",
+				dbName:     "gseven",
+				output:     "/home/rbaswe/backups/",
+				maxFileAge: "",
+			},
+		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := pgsqlBackup(testDbHost, testDbPort, testDbUser, testDbName, testDbPassword, testOutputDir, "")
+		t.Run(tt.cfg.dbName, func(t *testing.T) {
+			var cfg = tt.cfg
+			err := pgsqlBackup(cfg.host, cfg.port, cfg.user, cfg.dbName, cfg.password, cfg.output, cfg.maxFileAge)
 			if err != nil {
 				t.Errorf("pgsqlBackup() error = %v", err)
 				return
