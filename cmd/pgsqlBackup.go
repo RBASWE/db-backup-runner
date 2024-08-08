@@ -26,7 +26,7 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 	// }
 
 	now := time.Now()
-	outputFile := filepath.Join(filepath.Clean(outputDir), "pg_dump "+now.Format("2006-01-02 15:04:05")+".sql")
+	outputFile := filepath.Join(filepath.Clean(outputDir), "pg_dump_"+now.Format("20060102_150405")+".sql")
 
 	// check if pg_dump is installed
 	// cmd := exec.Command("dpkg", "-s", "postgresql-client")
