@@ -29,3 +29,39 @@ Delete all files older than the specified age.
 ```sh
 db-backup-runner prune [backupDir] --max-file-age 720h # 720h => 30days
 ```
+
+## Install
+
+```sh
+go install github.com/rbaswe/db-backup-runner@latest
+```
+
+### Windows
+
+
+in order for windws to find the executable, you need to add the go bin path to the system path.  
+Go to `Environment Variables` > `System Variables` > `Path` > `Edit` > `New` and then paste the go bin path.  (e.g., `%USERPROFILE%\go\bin`)
+This should be done automatically when installing go.
+
+Since this script uses `pg_dump` to create the backup, you need to install [postgresql](https://www.postgresql.org/download/windows/) and add the `bin` folder to the system path.  
+Again go to `Environment Variables` > `System Variables` > `Path` > `Edit` > `New` and paste the path to the bin folder of postgresql. (e.g., `C:\Program Files\PostgreSQL\16\bin`)
+
+### Linux
+
+Same in linux, the PATH and GOPATH environment variables need to be set in order to find  
+the executables.
+
+* export PATH=$PATH:$HOME/go/bin
+* export GOPATH=$HOME/go
+
+In order to get the pgsqlclient package which is used by the script use following command to install
+
+```sh
+sudo apt install postgresql-client
+```
+
+## Cronjob example
+
+```sh
+* * * * * /home/rbaswe/go/bin/db-backup-runner pgsql --host 192.168.35.43 -u admin --pw admin -d gseven -p 5432 --max-file-age 10m -o /home/rbaswe/backups/
+```
