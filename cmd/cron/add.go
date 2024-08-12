@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/log"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +32,7 @@ type backupConfig struct {
 var addCmd = &cobra.Command{
 	Use:   "add",
 	Short: "Add new cron - sudo required!",
-	Long:  `add new cron - sudo required!`,
+	Long:  `Add new cron - sudo required!`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if name, cron, err := askForCron(); err != nil {
 			log.Error(err)
@@ -51,7 +51,7 @@ func writeCron(cronName string, cron string) error {
 		return errors.New("this function is only supported on Linux")
 	}
 
-	var cronPath = "/etc/cron.d/" + cronName
+	var cronPath = filepath.Join(CronDir, cronName)
 	file, err := os.CreateTemp("", "dbbackuprunner_"+cronName)
 	if err != nil {
 		fmt.Printf("Error opening or creating file: %v\n", err)
@@ -67,30 +67,6 @@ func writeCron(cronName string, cron string) error {
 
 	// Move the file to the cron directory
 	// TODO better solution?
-	if _, err := os.Stat(cronPath); err == nil {
-		prompt := promptui.Prompt{
-			Label:     "Do want to rename the file?",
-			IsConfirm: true,
-		}
-
-		if result, err := prompt.Run(); err != nil {
-			return err
-		} else {
-			if result == "y" {
-				prompt := promptui.Prompt{
-					Label: "New name",
-				}
-				if newName, err := prompt.Run(); err != nil {
-					return err
-				} else {
-					cronPath = "/etc/cron.d/" + newName
-				}
-			} else {
-				return err
-			}
-		}
-	}
-
 	cmd := exec.Command("sudo", "mv", file.Name(), cronPath)
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Error writing to file: %v\n", err)
@@ -112,15 +88,16 @@ func askForCron() (cronName string, cron string, err error) {
 	var (
 		pasteCron      string
 		cronExpression string
+		dbConnectionOk = false
 		user           = "root"
 		backupCfg      = backupConfig{
 			dbType:     "pgsql",
-			host:       "",
+			host:       "192.168.35.43",
 			port:       "5432",
-			user:       "",
-			password:   "",
-			dbName:     "",
-			output:     "",
+			user:       "admin",
+			password:   "admin",
+			dbName:     "gseven",
+			output:     "/home/rbaswe/backups",
 			maxFileAge: "",
 		}
 		fullCron string
@@ -128,7 +105,15 @@ func askForCron() (cronName string, cron string, err error) {
 
 	form := huh.NewForm(
 		huh.NewGroup(
-			huh.NewInput().Title("Enter cron name").Value(&cronName).Validate(required),
+			huh.NewInput().Title("Enter cron name").Value(&cronName).Validate(func(s string) error {
+				if err := required(s); err != nil {
+					return err
+				}
+				if err := checkFileName(s); err != nil {
+					return err
+				}
+				return nil
+			}),
 			huh.NewSelect[string]().Title("Do you want to paste a cron?").
 				Options(
 					huh.NewOption[string]("Yes", "yes"),
@@ -141,6 +126,8 @@ func askForCron() (cronName string, cron string, err error) {
 	if err := form.Run(); err != nil {
 		return "", "", err
 	}
+
+	cronName = CronFilePrefix + "_" + cronName
 
 	// TODO add valitadors to prompts
 	switch pasteCron {
@@ -169,7 +156,6 @@ func askForCron() (cronName string, cron string, err error) {
 
 					return nil
 				}),
-				// huh.NewInput().Title("Enter user").Value(&user).,
 				huh.NewSelect[string]().Title("Select database type").
 					Options(
 						// huh.NewOption[string]("MySQL", "mysql"),
@@ -181,8 +167,42 @@ func askForCron() (cronName string, cron string, err error) {
 				huh.NewInput().Title("Database user").Value(&backupCfg.user).Validate(required),
 				huh.NewInput().Title("Database password").Value(&backupCfg.password).Validate(required).EchoMode(huh.EchoModePassword),
 				huh.NewInput().Title("Database name").Value(&backupCfg.dbName).Validate(required),
-				huh.NewInput().Title("Output directory").Value(&backupCfg.output).Validate(required),
+				huh.NewInput().Title("Output directory").Value(&backupCfg.output).Validate(func(s string) error {
+					if err := required(s); err != nil {
+						return err
+					}
+
+					// Check if the directory exists
+					if _, err := os.Stat(s); os.IsNotExist(err) {
+						// Prompt the user with a confirmation dialog
+						createDir := false
+						huh.NewConfirm().Title("Directory does not exist. Create it?").Value(&createDir).Run()
+
+						if createDir {
+							// Attempt to create the directory
+							if err := os.MkdirAll(s, os.ModePerm); err != nil {
+								return err
+							}
+						} else {
+							log.Info("output directory does not exist and was not created")
+						}
+					}
+					return nil
+				}),
 				huh.NewInput().Title("Max file age (default \"\" => no delete)").Value(&backupCfg.maxFileAge).Placeholder(""),
+				huh.NewConfirm().Title("Test connection?").Value(&dbConnectionOk).Validate(func(b bool) error {
+					log.Info("Testing connection to PostgreSQL database")
+
+					if b {
+						if err := dryRun(backupCfg); err != nil {
+							return errors.New("connection failed, check you credentials")
+						}
+						log.Info("connection successful")
+						return nil
+					} else {
+						return nil
+					}
+				}),
 			),
 		)
 
@@ -244,6 +264,28 @@ func validateCronExpression(s string) error {
 	}
 	if !match {
 		return errors.New("invalid cron expression")
+	}
+
+	return nil
+}
+
+func checkFileName(s string) error {
+	if _, err := os.Stat(filepath.Join(CronDir, CronFilePrefix+"_"+s)); err != nil {
+		return nil
+	} else {
+		return errors.New("cron already exists")
+	}
+}
+
+func dryRun(backupCfg backupConfig) error {
+	switch backupCfg.dbType {
+	case "pgsql":
+		os.Setenv("PGPASSWORD", backupCfg.password)
+		cmd := exec.Command("psql", "-h", backupCfg.host, "-p", backupCfg.port, "-U", backupCfg.user, "-d", backupCfg.dbName)
+
+		if err := cmd.Run(); err != nil {
+			return err
+		}
 	}
 
 	return nil

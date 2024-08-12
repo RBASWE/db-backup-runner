@@ -7,6 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	CronDir        = "/etc/cron.d"
+	CronFilePrefix = "dbbr"
+)
+
 // cronCmd represents the cron command
 var CronRootCmd = &cobra.Command{
 	Use:   "cron",
