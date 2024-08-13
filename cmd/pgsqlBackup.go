@@ -68,9 +68,12 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 		}
 
 		log.Warn("Pruned old backups", "count", pruneCount)
+		logger.FileLogger.Warn("Pruned old backups", "count", pruneCount)
 	}
 
 	log.Info("Dump created:", "dump file", outputFile)
+	msg := dbName + " | Dump created:"
+	logger.FileLogger.Info(msg, "dump file", outputFile)
 	return nil
 }
 
