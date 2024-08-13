@@ -47,6 +47,8 @@ var addCmd = &cobra.Command{
 }
 
 func writeCron(cronName string, cron string) error {
+	cronName = CronFilePrefix + "_" + cronName
+
 	if runtime.GOOS != "linux" {
 		return errors.New("this function is only supported on Linux")
 	}
@@ -89,9 +91,9 @@ func askForCronCfg() (cronName string, cron string, err error) {
 	var (
 		pasteCron      string
 		cronExpression string
-		dbConnectionOk = false
-		user           = "root"
-		backupCfg      = backupConfig{
+		// dbConnectionOk = false
+		user      = "root"
+		backupCfg = backupConfig{
 			dbType:     "pgsql",
 			host:       "",
 			port:       "5432",
@@ -104,144 +106,167 @@ func askForCronCfg() (cronName string, cron string, err error) {
 		fullCron string
 	)
 
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().Title("Enter cron name").Value(&cronName).Validate(func(s string) error {
-				if err := required(s); err != nil {
-					return err
-				}
-				if err := checkFileName(s); err != nil {
-					return err
-				}
-				return nil
-			}),
-			huh.NewSelect[string]().Title("Do you want to paste a cron?").
-				Options(
-					huh.NewOption[string]("Yes", "yes"),
-					huh.NewOption[string]("No", "no").Selected(true),
-					huh.NewOption[string]("Read from file", "file"),
-				).Value(&pasteCron),
-		),
-	)
-
-	if err := form.Run(); err != nil {
-		return "", "", err
-	}
-
-	cronName = CronFilePrefix + "_" + cronName
-
-	// TODO add valitadors to prompts
-	switch pasteCron {
-	case "yes":
-		cronInput := huh.NewInput().
-			Title("Enter cron expression").
-			Description("Format: [cronExpression: * * * * *] [user: root] [task: pathToExecutable]").
-			Value(&fullCron).
-			Validate(required)
-		if err := cronInput.Run(); err != nil {
-			return "", "", err
-		}
-
-		log.Info(fullCron)
-		// return cronName, fullCron, nil
-	case "no":
-		cronBuilderForm := huh.NewForm(
+	for {
+		form := huh.NewForm(
 			huh.NewGroup(
-				huh.NewInput().Title("Enter cron expression").Value(&cronExpression).Validate(func(s string) error {
+				huh.NewInput().Title("Enter cron name").Value(&cronName).Validate(func(s string) error {
 					if err := required(s); err != nil {
 						return err
 					}
-					if err = validateCronExpression(s); err != nil {
+					if err := checkFileName(s); err != nil {
 						return err
 					}
-
 					return nil
 				}),
-				huh.NewSelect[string]().Title("Select database type").
+				huh.NewSelect[string]().Title("Do you want to paste a cron?").
 					Options(
-						// huh.NewOption[string]("MySQL", "mysql"),
-						huh.NewOption[string]("PostgreSQL", "pgsql").Selected(true),
-					).Value(&backupCfg.dbType),
-
-				huh.NewInput().Title("Database host").Value(&backupCfg.host).Validate(required),
-				huh.NewInput().Title("Database port").Value(&backupCfg.port).Validate(required),
-				huh.NewInput().Title("Database user").Value(&backupCfg.user).Validate(required),
-				huh.NewInput().Title("Database password").Value(&backupCfg.password).Validate(required).EchoMode(huh.EchoModePassword),
-				huh.NewInput().Title("Database name").Value(&backupCfg.dbName).Validate(required),
-				huh.NewInput().Title("Output directory").Value(&backupCfg.output).Validate(func(s string) error {
-					if err := required(s); err != nil {
-						return err
-					}
-
-					// Check if the directory exists
-					if _, err := os.Stat(s); os.IsNotExist(err) {
-						// Prompt the user with a confirmation dialog
-						createDir := false
-						huh.NewConfirm().Title("Directory does not exist. Create it?").Value(&createDir).Run()
-
-						if createDir {
-							// Attempt to create the directory
-							if err := os.MkdirAll(s, os.ModePerm); err != nil {
-								return err
-							}
-						} else {
-							log.Info("output directory does not exist and was not created")
-						}
-					}
-					return nil
-				}),
-				huh.NewInput().Title("Max file age (default \"\" => no delete)").Value(&backupCfg.maxFileAge).Placeholder(""),
-				huh.NewConfirm().Title("Test connection?").Value(&dbConnectionOk).Validate(func(b bool) error {
-					log.Info("Testing connection to PostgreSQL database")
-
-					if b {
-						if err := dryRun(backupCfg); err != nil {
-							return errors.New("connection failed, check you credentials")
-						}
-						log.Info("connection successful")
-						return nil
-					} else {
-						return nil
-					}
-				}),
+						huh.NewOption[string]("Yes", "yes"),
+						huh.NewOption[string]("No", "no").Selected(true),
+						huh.NewOption[string]("Read from file", "file"),
+					).Value(&pasteCron),
 			),
 		)
 
-		if err := cronBuilderForm.Run(); err != nil {
+		if err := form.Run(); err != nil {
 			return "", "", err
 		}
 
-		var command = ""
-		if binaryPath, err := os.Executable(); err != nil {
+		// TODO add valitadors to prompts
+		switch pasteCron {
+		case "yes":
+			cronInput := huh.NewInput().
+				Title("Enter cron expression").
+				Description("Format: [cronExpression: * * * * *] [user: root] [task: pathToExecutable]").
+				Value(&fullCron).
+				Validate(required)
+			if err := cronInput.Run(); err != nil {
+				return "", "", err
+			}
+
+			log.Info(fullCron)
+			// return cronName, fullCron, nil
+		case "no":
+			if err := huh.NewInput().Title("Enter cron expression").Value(&cronExpression).Validate(func(s string) error {
+				if err := required(s); err != nil {
+					return err
+				}
+				if err = validateCronExpression(s); err != nil {
+					return err
+				}
+
+				return nil
+			}).Run(); err != nil {
+				return "", "", err
+			}
+
+			for {
+				cronBuilderForm := huh.NewForm(
+					huh.NewGroup(
+						huh.NewSelect[string]().Title("Select database type").
+							Options(
+								// huh.NewOption[string]("MySQL", "mysql"),
+								huh.NewOption[string]("PostgreSQL", "pgsql").Selected(true),
+							).Value(&backupCfg.dbType),
+
+						huh.NewInput().Title("Database host").Value(&backupCfg.host).Validate(required),
+						huh.NewInput().Title("Database port").Value(&backupCfg.port).Validate(required),
+						huh.NewInput().Title("Database user").Value(&backupCfg.user).Validate(required),
+						huh.NewInput().Title("Database password").Value(&backupCfg.password).Validate(required).EchoMode(huh.EchoModePassword),
+						huh.NewInput().Title("Database name").Value(&backupCfg.dbName).Validate(required),
+					),
+				)
+
+				log.Info("Enter database credentials")
+				if err := cronBuilderForm.Run(); err != nil {
+					return "", "", err
+				}
+				var testConn = false
+				huh.NewConfirm().Title("Test connection?").Value(&testConn).Run()
+				if testConn {
+					log.Info("Testing connection...")
+					if err := dryRun(backupCfg); err != nil {
+						log.Error("Error testing connection, check your credentials", "err", err)
+						var tryAgain = false
+						huh.NewConfirm().Title("Try again?").Value(&tryAgain).Run()
+						if !tryAgain {
+							break
+						}
+					} else {
+						// dbConnectionOk = true
+						log.Info("Connection successful!")
+						break
+					}
+				}
+			}
+
+			for {
+				var proceed = true
+				if err := huh.NewInput().Title("Output directory").Value(&backupCfg.output).Validate(required).Run(); err != nil {
+					return "", "", err
+				}
+
+				// Check if the directory exists
+				if _, err := os.Stat(backupCfg.output); os.IsNotExist(err) {
+					proceed = false
+					// Prompt the user with a confirmation dialog
+					createDir := false
+					huh.NewConfirm().Title(backupCfg.output + `
+					Directory does not exist. Create it?`).Value(&createDir).Run()
+
+					if createDir {
+						// Attempt to create the directory
+						if err := os.MkdirAll(backupCfg.output, os.ModePerm); err != nil {
+							return "", "", err
+						}
+						proceed = true
+					} else {
+						var tryAgain = false
+						huh.NewConfirm().Title("Try again?").Value(&tryAgain).Run()
+						proceed = !tryAgain
+					}
+				}
+
+				if proceed {
+					break
+				}
+			}
+
+			if err := huh.NewInput().Title("Max file age (default \"\" => no delete)").Value(&backupCfg.maxFileAge).Placeholder("").Run(); err != nil {
+				return "", "", err
+			}
+
+			var command = ""
+			if binaryPath, err := os.Executable(); err != nil {
+				return "", "", err
+			} else {
+				command = binaryPath
+			}
+
+			command += createCommand(backupCfg)
+
+			if backupCfg.maxFileAge != "" {
+				command += " --max-file-age " + backupCfg.maxFileAge
+			}
+
+			fullCron = cronExpression + " " + user + " " + command
+
+		case "file":
+			return "", "", errors.New("option not supported yet")
+		}
+
+		fullCron += "\n"
+		log.Info(fullCron)
+
+		ok := false
+		confirmCron := huh.NewConfirm().Title("Confirm cron expression").Value(&ok)
+		if err := confirmCron.Run(); err != nil {
 			return "", "", err
 		} else {
-			command = binaryPath
-		}
-
-		command += createCommand(backupCfg)
-
-		if backupCfg.maxFileAge != "" {
-			command += " --max-file-age " + backupCfg.maxFileAge
-		}
-
-		fullCron = cronExpression + " " + user + " " + command
-
-	case "file":
-		return "", "", errors.New("option not supported yet")
-	}
-
-	fullCron += "\n"
-	log.Info(fullCron)
-
-	ok := false
-	confirmCron := huh.NewConfirm().Title("Confirm cron expression").Value(&ok)
-	if err := confirmCron.Run(); err != nil {
-		return "", "", err
-	} else {
-		if ok {
-			return cronName, fullCron, nil
-		} else {
-			return cronName, "", errors.New("cron expression not confirmed")
+			if ok {
+				return cronName, fullCron, nil
+			} else {
+				log.Info("Try again")
+			}
 		}
 	}
 }
