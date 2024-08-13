@@ -5,13 +5,13 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 
+	"github.com/RBASWE/db-backup-runner/logger"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
@@ -36,11 +36,11 @@ var addCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if name, cron, err := askForCronCfg(); err != nil {
 			log.Error(err)
-			// log.Fatal(err)
+			logger.FileLogger.Error("Error on add", "err", err)
 		} else {
 			if err := writeCron(name, cron); err != nil {
 				log.Error(err)
-				// log.Fatal(err)
+				logger.FileLogger.Error("Error on add", "err", err)
 			}
 		}
 	},
@@ -54,14 +54,15 @@ func writeCron(cronName string, cron string) error {
 	var cronPath = filepath.Join(CronDir, cronName)
 	file, err := os.CreateTemp("", "dbbackuprunner_"+cronName)
 	if err != nil {
-		fmt.Printf("Error opening or creating file: %v\n", err)
+		log.Error("Error opening or creating file", "err", err)
 		return err
 	}
 	// Write the cron job to the file
 	_, err = file.WriteString(cron)
 	if err != nil {
-		fmt.Printf("Error writing to file: %v\n", err)
+		log.Error("Error writing to file", "err", err)
 		return err
+
 	}
 	defer file.Close()
 
@@ -69,14 +70,14 @@ func writeCron(cronName string, cron string) error {
 	// TODO better solution?
 	cmd := exec.Command("sudo", "mv", file.Name(), cronPath)
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("Error writing to file: %v\n", err)
+		log.Error("Error writing to file", "err", err)
 		return err
 	}
 
 	cmd = exec.Command("sudo", "chown", "root:root", cronPath)
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println("Error changing file owner:", err)
+		log.Error("Error changing file owner", "err", err)
 		return err
 	}
 

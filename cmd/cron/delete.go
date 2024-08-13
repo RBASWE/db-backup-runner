@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/RBASWE/db-backup-runner/logger"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
@@ -21,6 +22,7 @@ var deleteCmd = &cobra.Command{
 	Long:  `Delete running cronjob - sudo required`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := delete(cronName); err != nil {
+			logger.FileLogger.Error("Error on delete", "err", err)
 			log.Error("Error on delete", "err", err)
 		}
 	},

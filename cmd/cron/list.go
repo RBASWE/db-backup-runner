@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/RBASWE/db-backup-runner/logger"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 	"github.com/charmbracelet/log"
@@ -25,10 +26,12 @@ var listCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if fileNames, err := readCronFiles(); err != nil {
 			log.Error("Error reading cron files", "err", err)
+			logger.FileLogger.Error("Error reading cron files", "err", err)
 		} else {
 			log.Debug("FileNames", "files", fileNames)
 			if err := displayFiles(fileNames); err != nil {
 				log.Error("Error displaying files", "err", err)
+				logger.FileLogger.Error("Error displaying files", "err", err)
 			}
 		}
 	},

@@ -2,14 +2,16 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
 
+	"github.com/RBASWE/db-backup-runner/logger"
+	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
 )
 
@@ -31,16 +33,16 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 		// Windows-specific logic to check if pg_dump is installed
 		cmd = exec.Command("where", "pg_dump")
 		if err := cmd.Run(); err != nil {
-			log.Fatal("PostgreSQL client is not installed. Please install it first.")
-			return err
+			// log.Fatal("PostgreSQL client is not installed. Please install it first.")
+			return errors.New("postgreSQL client is not installed. Please install it first")
 		}
 	} else {
-		// Unix-like systems (Linux, macOS)
-		// cmd = exec.Command("dpkg", "-s", "postgresql-client")
-		// if err := cmd.Run(); err != nil {
-		// 	log.Fatal("PostgreSQL client is not installed. Please install it first. [sudo apt install postgresql-client]")
-		// 	return err
-		// }
+		// Linux
+		cmd = exec.Command("dpkg", "-s", "postgresql-client-16")
+		if err := cmd.Run(); err != nil {
+			// log.Fatal("PostgreSQL client is not installed. Please install it first. [sudo apt install postgresql-client]")
+			return errors.New("postgresql-client-16 is not installed. Please install it first. [sudo apt install postgresql-client]")
+		}
 	}
 
 	os.Setenv("PGPASSWORD", dbPassword)
@@ -51,23 +53,24 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 	cmd.Stderr = &errbuf
 
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("Error on pg_dump: %v\n", err)
-		fmt.Printf("output: %s\n", outbuf.String())
-		fmt.Printf("error output: %s\n", errbuf.String())
-		return err
+		return fmt.Errorf(
+			"error on pg_dump: %v\noutput: %s\nerror output: %s",
+			err, outbuf.String(), errbuf.String(),
+		)
 	}
 
 	// Remove files older than ***, time defined in attributes
 	if maxAge != "" {
 		pruneCount, err := prune(outputDir, maxAge)
 		if err != nil {
-			fmt.Printf("Error on pruneBackups: %v\n", err)
+			log.Error("Error on pruneBackups", "error", err)
 			return err
 		}
-		fmt.Printf("Pruned %d old backups\n", pruneCount)
+
+		log.Warn("Pruned old backups", "count", pruneCount)
 	}
 
-	fmt.Println("Dump created:", outputFile)
+	log.Info("Dump created:", "dump file", outputFile)
 	return nil
 }
 
@@ -77,7 +80,8 @@ var pgsqlCmd = &cobra.Command{
 	Long:  `Run a 'PGSQL' backup`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := pgsqlBackup(dbHost, dbPort, dbUser, dbName, dbPassword, outputDir, maxAge); err != nil {
-			log.Fatal(err)
+			logger.FileLogger.Error("Error on pgsqlBackup", "error", err)
+			os.Exit(1)
 		}
 	},
 }

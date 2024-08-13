@@ -4,6 +4,8 @@ go 1.22.5
 
 require github.com/charmbracelet/log v0.4.0
 
+require github.com/theritikchoure/logx v1.1.0 // indirect
+
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
