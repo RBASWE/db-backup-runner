@@ -36,11 +36,11 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 		}
 	} else {
 		// Unix-like systems (Linux, macOS)
-		cmd = exec.Command("dpkg", "-s", "postgresql-client")
-		if err := cmd.Run(); err != nil {
-			log.Fatal("PostgreSQL client is not installed. Please install it first. [sudo apt install postgresql-client]")
-			return err
-		}
+		// cmd = exec.Command("dpkg", "-s", "postgresql-client")
+		// if err := cmd.Run(); err != nil {
+		// 	log.Fatal("PostgreSQL client is not installed. Please install it first. [sudo apt install postgresql-client]")
+		// 	return err
+		// }
 	}
 
 	os.Setenv("PGPASSWORD", dbPassword)
