@@ -1,0 +1,12 @@
+cronExpression: "* * * *"
+maxFileAge: "2m"
+execUser: "root"
+output: "/home/rbaswe/backups/test"
+db:
+  type: "pgsql"
+  host: "localhost"
+  port: 5432
+  user: "admin"
+  password: "admin"
+  database: "gseven"
+

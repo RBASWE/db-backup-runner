@@ -18,3 +18,13 @@ func TestAddCronJob(t *testing.T) {
 		})
 	}
 }
+
+func TestFileImport(t *testing.T) {
+	var filePath = "/home/rbaswe/workspace/db-backup-cli/sample.yaml"
+	var cfg BackupConfig
+	if err := importBackupConfigFile(filePath, &cfg); err != nil {
+		t.Fail()
+	} else {
+		t.Log(cfg)
+	}
+}

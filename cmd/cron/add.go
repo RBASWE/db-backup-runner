@@ -10,22 +10,30 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 
 	"github.com/RBASWE/db-backup-runner/logger"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 )
 
-type backupConfig struct {
-	dbType     string
-	host       string
-	port       string
-	user       string
-	password   string
-	dbName     string
-	output     string
-	maxFileAge string
+type BackupConfig struct {
+	CronExpression string   `yaml:"cronExpression"`
+	Db             DbConfig `yaml:"db"`
+	Output         string   `yaml:"output"`
+	MaxFileAge     string   `yaml:"maxFileAge"`
+	User           string   `yaml:"execUser"`
+}
+
+type DbConfig struct {
+	DbType   string `yaml:"type"`
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	DbName   string `yaml:"database"`
 }
 
 // addCmd represents the add command
@@ -89,19 +97,20 @@ func writeCron(cronName string, cron string) error {
 // Linux
 func askForCronCfg() (cronName string, cron string, err error) {
 	var (
-		pasteCron      string
-		cronExpression string
-		// dbConnectionOk = false
-		user      = "root"
-		backupCfg = backupConfig{
-			dbType:     "pgsql",
-			host:       "",
-			port:       "5432",
-			user:       "",
-			password:   "",
-			dbName:     "",
-			output:     "",
-			maxFileAge: "",
+		pasteCron string
+		backupCfg = BackupConfig{
+			CronExpression: "0 0 * * *",
+			Db: DbConfig{
+				DbType:   "pgsql",
+				Host:     "",
+				Port:     "5432",
+				User:     "",
+				Password: "",
+				DbName:   "",
+			},
+			Output:     "",
+			MaxFileAge: "",
+			User:       "",
 		}
 		fullCron string
 	)
@@ -146,7 +155,7 @@ func askForCronCfg() (cronName string, cron string, err error) {
 			log.Info(fullCron)
 			// return cronName, fullCron, nil
 		case "no":
-			if err := huh.NewInput().Title("Enter cron expression").Value(&cronExpression).Validate(func(s string) error {
+			if err := huh.NewInput().Title("Enter cron expression").Value(&backupCfg.CronExpression).Validate(func(s string) error {
 				if err := required(s); err != nil {
 					return err
 				}
@@ -166,13 +175,13 @@ func askForCronCfg() (cronName string, cron string, err error) {
 							Options(
 								// huh.NewOption[string]("MySQL", "mysql"),
 								huh.NewOption[string]("PostgreSQL", "pgsql").Selected(true),
-							).Value(&backupCfg.dbType),
+							).Value(&backupCfg.Db.DbType),
 
-						huh.NewInput().Title("Database host").Value(&backupCfg.host).Validate(required),
-						huh.NewInput().Title("Database port").Value(&backupCfg.port).Validate(required),
-						huh.NewInput().Title("Database user").Value(&backupCfg.user).Validate(required),
-						huh.NewInput().Title("Database password").Value(&backupCfg.password).Validate(required).EchoMode(huh.EchoModePassword),
-						huh.NewInput().Title("Database name").Value(&backupCfg.dbName).Validate(required),
+						huh.NewInput().Title("Database host").Value(&backupCfg.Db.Host).Validate(required),
+						huh.NewInput().Title("Database port").Value(&backupCfg.Db.Port).Validate(required),
+						huh.NewInput().Title("Database user").Value(&backupCfg.Db.User).Validate(required),
+						huh.NewInput().Title("Database password").Value(&backupCfg.Db.Password).Validate(required).EchoMode(huh.EchoModePassword),
+						huh.NewInput().Title("Database name").Value(&backupCfg.Db.DbName).Validate(required),
 					),
 				)
 
@@ -184,7 +193,7 @@ func askForCronCfg() (cronName string, cron string, err error) {
 				huh.NewConfirm().Title("Test connection?").Value(&testConn).Run()
 				if testConn {
 					log.Info("Testing connection...")
-					if err := dryRun(backupCfg); err != nil {
+					if err := dryRun(backupCfg.Db); err != nil {
 						log.Error("Error testing connection, check your credentials", "err", err)
 						var tryAgain = false
 						huh.NewConfirm().Title("Try again?").Value(&tryAgain).Run()
@@ -201,21 +210,21 @@ func askForCronCfg() (cronName string, cron string, err error) {
 
 			for {
 				var proceed = true
-				if err := huh.NewInput().Title("Output directory").Value(&backupCfg.output).Validate(required).Run(); err != nil {
+				if err := huh.NewInput().Title("Output directory").Value(&backupCfg.Output).Validate(required).Run(); err != nil {
 					return "", "", err
 				}
 
 				// Check if the directory exists
-				if _, err := os.Stat(backupCfg.output); os.IsNotExist(err) {
+				if _, err := os.Stat(backupCfg.Output); os.IsNotExist(err) {
 					proceed = false
 					// Prompt the user with a confirmation dialog
 					createDir := false
-					huh.NewConfirm().Title(backupCfg.output + `
+					huh.NewConfirm().Title(backupCfg.Output + `
 					Directory does not exist. Create it?`).Value(&createDir).Run()
 
 					if createDir {
 						// Attempt to create the directory
-						if err := os.MkdirAll(backupCfg.output, os.ModePerm); err != nil {
+						if err := os.MkdirAll(backupCfg.Output, os.ModePerm); err != nil {
 							return "", "", err
 						}
 						proceed = true
@@ -231,30 +240,75 @@ func askForCronCfg() (cronName string, cron string, err error) {
 				}
 			}
 
-			if err := huh.NewInput().Title("Max file age (default \"\" => no delete)").Value(&backupCfg.maxFileAge).Placeholder("").Run(); err != nil {
+			if err := huh.NewInput().Title("Max file age (default \"\" => no delete)").Value(&backupCfg.MaxFileAge).Placeholder("").Run(); err != nil {
 				return "", "", err
 			}
-
-			var command = ""
-			if binaryPath, err := os.Executable(); err != nil {
-				return "", "", err
-			} else {
-				command = binaryPath
-			}
-
-			command += createCommand(backupCfg)
-
-			if backupCfg.maxFileAge != "" {
-				command += " --max-file-age " + backupCfg.maxFileAge
-			}
-
-			fullCron = cronExpression + " " + user + " " + command
-
 		case "file":
-			return "", "", errors.New("option not supported yet")
+			// =================================================
+			// =============== READ FROM FILE ==================
+			// =================================================
+			var filePath string
+			huh.NewInput().Title("Config filepath (.yml)").Value(&filePath).Validate(func(s string) error {
+				if _, err := os.Stat(s); os.IsNotExist(err) {
+					return errors.New("file does not exist")
+				}
+
+				if err = importBackupConfigFile(filePath, &backupCfg); err != nil {
+					return err
+				}
+
+				var emptyProperties []string
+				if backupCfg.CronExpression == "" {
+					emptyProperties = append(emptyProperties, "cronExpression")
+				}
+				if backupCfg.Db.DbType == "" {
+					emptyProperties = append(emptyProperties, "db.type")
+				}
+				if backupCfg.Db.Host == "" {
+					emptyProperties = append(emptyProperties, "db.host")
+				}
+				if backupCfg.Db.Port == "" {
+					emptyProperties = append(emptyProperties, "db.port")
+				}
+				if backupCfg.Db.User == "" {
+					emptyProperties = append(emptyProperties, "db.user")
+				}
+				if backupCfg.Db.Password == "" {
+					emptyProperties = append(emptyProperties, "db.password")
+				}
+				if backupCfg.Db.DbName == "" {
+					emptyProperties = append(emptyProperties, "db.database")
+				}
+				if backupCfg.Output == "" {
+					emptyProperties = append(emptyProperties, "db.output")
+				}
+				if len(emptyProperties) > 0 {
+					return errors.New("the following properties are empty: " + strings.Join(emptyProperties, ", "))
+				}
+
+				if _, err := os.Stat(backupCfg.Output); os.IsNotExist(err) {
+					return errors.New("output file does not exist")
+				}
+
+				return nil
+			}).Run()
 		}
 
-		fullCron += "\n"
+		var command = ""
+		if binaryPath, err := os.Executable(); err != nil {
+			return "", "", err
+		} else {
+			command = binaryPath
+		}
+
+		command += createCommand(backupCfg)
+
+		if backupCfg.MaxFileAge != "" {
+			command += " --max-file-age " + backupCfg.MaxFileAge
+		}
+
+		fullCron = backupCfg.CronExpression + " " + backupCfg.User + " " + command + "\n"
+
 		log.Info(fullCron)
 
 		ok := false
@@ -275,8 +329,8 @@ func init() {
 	CronRootCmd.AddCommand(addCmd)
 }
 
-func createCommand(backupCfg backupConfig) string {
-	return " " + backupCfg.dbType + " --host " + backupCfg.host + " --port " + backupCfg.port + " --user " + backupCfg.user + " --pw " + backupCfg.password + " --database " + backupCfg.dbName + " --output " + backupCfg.output
+func createCommand(backupCfg BackupConfig) string {
+	return " " + backupCfg.Db.DbType + " --host " + backupCfg.Db.Host + " --port " + backupCfg.Db.Port + " --user " + backupCfg.Db.User + " --pw " + backupCfg.Db.Password + " --database " + backupCfg.Db.DbName + " --output " + backupCfg.Output
 }
 
 // Form validators
@@ -307,15 +361,29 @@ func checkFileName(s string) error {
 	}
 }
 
-func dryRun(backupCfg backupConfig) error {
-	switch backupCfg.dbType {
+func dryRun(dbConfig DbConfig) error {
+	switch dbConfig.DbType {
 	case "pgsql":
-		os.Setenv("PGPASSWORD", backupCfg.password)
-		cmd := exec.Command("psql", "-h", backupCfg.host, "-p", backupCfg.port, "-U", backupCfg.user, "-d", backupCfg.dbName)
+		os.Setenv("PGPASSWORD", dbConfig.Password)
+		cmd := exec.Command("psql", "-h", dbConfig.Host, "-p", dbConfig.Port, "-U", dbConfig.User, "-d", dbConfig.DbName)
 
 		if err := cmd.Run(); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func importBackupConfigFile(cfgFilePath string, backupCfg *BackupConfig) error {
+	var yamlFile []byte
+	var err error
+	if yamlFile, err = os.ReadFile(cfgFilePath); err != nil {
+		return err
+	}
+
+	if err := yaml.Unmarshal(yamlFile, &backupCfg); err != nil {
+		return err
 	}
 
 	return nil
