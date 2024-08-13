@@ -8,19 +8,19 @@ import (
 )
 
 var FileLogger *log.Logger
+var LogFile string
 
 func init() {
 	var file *os.File
 	var err error
-	var logFile string
 
 	if logFileEnv := os.Getenv("LOG_FILE_PATH"); logFileEnv != "" {
-		logFile = logFileEnv
+		LogFile = logFileEnv
 	} else {
-		logFile = filepath.Join(os.TempDir(), "db-backup-runner.log")
+		LogFile = filepath.Join(os.TempDir(), "db-backup-runner.log")
 	}
 
-	if file, err = os.OpenFile(logFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600); err != nil {
+	if file, err = os.OpenFile(LogFile, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600); err != nil {
 		log.Fatal(err)
 	}
 
@@ -35,5 +35,5 @@ func init() {
 		CallerOffset:    1,
 	})
 
-	FileLogger.Info("Logging to file: " + logFile)
+	FileLogger.Info("Logging to file: " + LogFile)
 }
