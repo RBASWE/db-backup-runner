@@ -290,6 +290,14 @@ func askForCronCfg() (cronName string, cron string, err error) {
 					return errors.New("output file does not exist")
 				}
 
+				if err := validateCronExpression(backupCfg.CronExpression); err != nil {
+					return errors.New("invalid cron expression")
+				}
+
+				if err := dryRun(backupCfg.Db); err != nil {
+					return errors.New("error testing connection, check your credentials")
+				}
+
 				return nil
 			}).Run()
 		}

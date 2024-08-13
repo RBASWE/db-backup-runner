@@ -42,6 +42,25 @@ will open up a input form to fill in the details.
 This command will add a file containing the cronjob expression to the systems dir `/etc/cron.d/`.  
 All files inside this directory will be executed by the cron daemon.
 
+##### Import from file
+select `Read from file` and then select the file containing the cronjob expression.
+
+file content:
+```yaml
+cronExpression: "* * * * *"
+maxFileAge: "2m"
+execUser: "root"
+output: "/home/rbaswe/backups/test"
+db:
+  type: "pgsql"
+  host: "localhost"
+  port: 5432
+  user: "admin"
+  password: "admin"
+  database: "gseven"
+
+```
+
 **in order to use this command, you need to have root privileges.**
 
 

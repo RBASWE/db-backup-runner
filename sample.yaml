@@ -1,4 +1,4 @@
-cronExpression: "* * * *"
+cronExpression: "* * * * *"
 maxFileAge: "2m"
 execUser: "root"
 output: "/home/rbaswe/backups/test"
