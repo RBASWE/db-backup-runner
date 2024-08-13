@@ -73,6 +73,7 @@ func pgsqlBackup(dbHost string, dbPort string, dbUser string, dbName string, dbP
 
 	log.Info("Dump created:", "dump file", outputFile)
 	msg := dbName + " | Dump created:"
+
 	logger.FileLogger.Info(msg, "dump file", outputFile)
 	return nil
 }
@@ -84,7 +85,7 @@ var pgsqlCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := pgsqlBackup(dbHost, dbPort, dbUser, dbName, dbPassword, outputDir, maxAge); err != nil {
 			logger.FileLogger.Error("Error on pgsqlBackup", "error", err)
-			os.Exit(1)
+			log.Error("Error on pgsqlBackup", "error", err)
 		}
 	},
 }

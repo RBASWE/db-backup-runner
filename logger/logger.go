@@ -24,8 +24,6 @@ func init() {
 		log.Fatal(err)
 	}
 
-	defer file.Close()
-
 	FileLogger = log.NewWithOptions(file, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,

@@ -18,7 +18,7 @@ RUN apt-get update && \
     apt-get install -y postgresql-client-16
 
 # Install Go application
-RUN go install github.com/RBASWE/db-backup-runner@0.0.7
+RUN go install github.com/RBASWE/db-backup-runner@0.0.8
 
 # ENV LOG_FILE_PATH=/var/log/db-backup-runner.log
 
